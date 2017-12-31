@@ -293,9 +293,10 @@ class WordMatcher():
             lines = set()
             for line in (make_word_line(word_list, words.original_phrase) for
                          word_list in words.iterate_all_matches()):
-                if line not in lines:
+                as_lower = line.lower()
+                if as_lower not in lines:
                     print(line)
-                    lines.add(line)
+                    lines.add(as_lower)
         else:
             for word_list in words.iterate_all_matches():
                     print_word_list(word_list, words.original_phrase,
