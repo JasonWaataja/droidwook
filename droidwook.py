@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+"""
+Find ways to make words by covering certain letters of phrases.
+"""
+
 import argparse
 import copy
 import string
 import sys
 
 
-def is_letter(letter):
+def is_letter(letter: str) -> bool:
     """Returns whether or not letter is a a lowercase English character."""
     return letter in string.ascii_lowercase
 
@@ -59,9 +63,9 @@ class LetterInventory():
         return result
 
 
-def make_letter_maps(phrase: str):
+def make_letter_maps(phrase: str) -> list:
     """Returns a list with the same length as phrase, each element is None if
-    is not a letter or a dictionary mapping letters to lists of indices where
+    it's not a letter or a dictionary mapping letters to lists of indices where
     that letter can be found later in the phrase."""
     maps = [None] * len(phrase)
     last = None
@@ -101,7 +105,10 @@ def read_dict(path: str=DICT_PATH) -> list:
         return sorted(list(words))
 
 
-def make_word_line(word_list, phrase):
+def make_word_line(word_list: str, phrase: str) -> str:
+    """Takes a list of list of indices and returns a line formed taking those
+    indices of phrase.
+    """
     words = []
     for word in word_list:
         current = ""
@@ -155,10 +162,9 @@ def trim_dictionary(phrase: str, dictionary: list, dictionary_inventories:
     return trimmed_dict
 
 
-def next_index(word):
-    """Returns one past the last index of the list of indexes."""
-    # TODO: Change this to use the last index instead of max.
-    return max(word) + 1
+def next_index(word: list) -> int:
+    """Returns one past the last index of the list of indices."""
+    return word[-1] + 1
 
 
 class MatchResults():
@@ -169,7 +175,7 @@ class MatchResults():
     """
 
     def __init__(self, phrase: str, count: int=0, allow_less: bool=True,
-                 words_only=False):
+                 words_only: bool=False):
         self.original_phrase = phrase
         self.phrase = phrase.lower()
         self.count = count
@@ -191,18 +197,18 @@ class MatchResults():
             else:
                 self.words.append(None)
 
-    def add_match(self, indexes: list, index: int, print_results: bool=False):
-        """Stores a match with indices at indexes assuming it starts at index.
+    def add_match(self, indices: list, index: int, print_results: bool=False):
+        """Stores a match with indices at indices assuming it starts at index.
         If print_results is True, print all results that include that word and
         all combinations that include count words or less if allow_less is
         True.
         """
-        self.words[index].append(indexes)
+        self.words[index].append(indices)
         if print_results:
-            current_words = [indexes]
+            current_words = [indices]
             if self.count <= 1 or self.allow_less:
                 print_word_list(current_words, self.original_phrase)
-            start = next_index(indexes)
+            start = next_index(indices)
             for i in range(start, len(self.phrase)):
                 for word_list in self._iterate_matches(i, current_words,):
                     print_word_list(word_list, self.original_phrase)
@@ -233,6 +239,7 @@ class MatchResults():
             yield(word_list)
 
     def iterate_all_matches(self):
+        """Iterates over all matches currently found."""
         for i in range(len(self.phrase)):
             yield from self.iterate_matches(i)
 
@@ -242,7 +249,7 @@ class WordMatcher():
     letters of that phrase using a dictionary of words.
     """
 
-    def __init__(self, path=DICT_PATH):
+    def __init__(self, path: str=DICT_PATH):
         self.set_dict(read_dict(path))
 
     def set_dict(self, dictionary: list):
@@ -256,24 +263,24 @@ class WordMatcher():
         self.set_dict(read_dict(path))
 
     def _print_word_matches(self, word: str, start_index: int, word_index: int,
-                            index: int, indexes: list, words):
+                            index: int, indices: list, words):
         """Checks if word matches the phrase starting at start_index from
-        word_index at index in the phrase assuming the indices in indexes have
+        word_index at index in the phrase assuming the indices in indices have
         already been matches using maps containing lists of dictionaries of
         letters to where they occur later in the phrase where words is a
         MatchResults object. Note, this method updates words as it goes with
         the new words it finds.
         """
         if word_index == len(word):
-            words.add_match(indexes, start_index)
+            words.add_match(indices, start_index)
         elif word[word_index] in words.maps[index]:
             for i in words.maps[index][word[word_index]]:
-                new_indexes = indexes + [i]
+                new_indices = indices + [i]
                 self._print_word_matches(word, start_index, word_index + 1, i,
-                                         new_indexes, words)
+                                         new_indices, words)
 
     def print_matches(self, phrase: str, count: int=0, allow_less: bool=True,
-                      words_only=False, unique_phrases=False):
+                      words_only: bool=False, unique_phrases: bool=False):
         """Prints all word combinations that can be formed by taking phrase and
         covering certain letters. The combinations will have count words or
         less if allow_less is True or any number of words is count is less than
@@ -304,6 +311,7 @@ class WordMatcher():
 
 
 def make_parser():
+    """Returns a new ArgumentParser for this program."""
     parser = argparse.ArgumentParser(description="Find new memes")
     parser.add_argument("phrase", nargs="?")
     parser.add_argument("-c", "--count", help="The number of words to print.",
@@ -324,7 +332,11 @@ def main(argv):
     args = parser.parse_args(argv[1:])
     if args.phrase:
         path = args.dictionary if args.dictionary else DICT_PATH
-        matcher = WordMatcher(path)
+        try:
+            matcher = WordMatcher(path)
+        except FileNotFoundError:
+            print("Error loading dictionary")
+            return
         matcher.print_matches(args.phrase, args.count, args.allow_less,
                               args.words_only, args.unique_phrases)
         return
