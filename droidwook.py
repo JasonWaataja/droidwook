@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import copy
 import string
 import sys
@@ -100,7 +101,17 @@ def read_dict(path: str=DICT_PATH) -> list:
         return sorted(list(words))
 
 
-def print_word_list(word_list: list, phrase: str):
+def make_word_line(word_list, phrase):
+    words = []
+    for word in word_list:
+        current = ""
+        for index in word:
+            current += phrase[index]
+        words.append(current)
+    return " ".join(words)
+
+
+def print_word_list(word_list: list, phrase: str, words_only: bool=False):
     """Prints the words in word_list by getting indices from phrase. word_list
     is a list of list of int. Each element is a list of indices in phrase and
     the output is constructed by using those indices of phrase. Note, the
@@ -116,13 +127,16 @@ def print_word_list(word_list: list, phrase: str):
             result[index] = phrase[index]
             current += phrase[index]
         words.append(current)
-    combined = list(" ".join(result))
-    space_indices = [next_index(word) for word in word_list]
-    last_index = max(space_indices)
-    for i in space_indices:
-        if i != last_index:
-            combined[2 * i - 1] = "|"
-    print("{} ({})".format("".join(combined), " ".join(words)))
+    if words_only:
+        print(" ".join(words))
+    else:
+        combined = list(" ".join(result))
+        space_indices = [next_index(word) for word in word_list]
+        last_index = max(space_indices)
+        for i in space_indices:
+            if i != last_index:
+                combined[2 * i - 1] = "|"
+        print("{} ({})".format("".join(combined), " ".join(words)))
 
 
 def trim_dictionary(phrase: str, dictionary: list, dictionary_inventories:
@@ -154,11 +168,13 @@ class MatchResults():
     phrase.
     """
 
-    def __init__(self, phrase: str, count: int=0, allow_less: bool=True):
+    def __init__(self, phrase: str, count: int=0, allow_less: bool=True,
+                 words_only=False):
         self.original_phrase = phrase
         self.phrase = phrase.lower()
         self.count = count
         self.allow_less = allow_less
+        self.words_only = words_only
         self.words = []
         self.maps = make_letter_maps(self.phrase)
         self.initial_map = {}
@@ -175,8 +191,7 @@ class MatchResults():
             else:
                 self.words.append(None)
 
-    def add_match(self, indexes: list, index: int, print_results: bool=False,
-                  count: int=0, allow_less: bool=False):
+    def add_match(self, indexes: list, index: int, print_results: bool=False):
         """Stores a match with indices at indexes assuming it starts at index.
         If print_results is True, print all results that include that word and
         all combinations that include count words or less if allow_less is
@@ -185,16 +200,14 @@ class MatchResults():
         self.words[index].append(indexes)
         if print_results:
             current_words = [indexes]
-            if count <= 1 or allow_less:
+            if self.count <= 1 or self.allow_less:
                 print_word_list(current_words, self.original_phrase)
             start = next_index(indexes)
             for i in range(start, len(self.phrase)):
-                for word_list in self._iterate_matches(count, i, current_words,
-                                                       allow_less):
+                for word_list in self._iterate_matches(i, current_words,):
                     print_word_list(word_list, self.original_phrase)
 
-    def _iterate_matches(self, count: int, index: int, current_words: list,
-                         allow_less: bool=False):
+    def _iterate_matches(self, index: int, current_words: list):
         """Iterates throuh all matches that have a word starting at index and
         using any word already in current_words.
         """
@@ -202,25 +215,26 @@ class MatchResults():
         if word_list is not None:
             for word in word_list:
                 current_words.append(word)
-                if ((allow_less and len(current_words) < count) or count < 1 or
-                        len(current_words) == count):
+                if ((self.allow_less and len(current_words) < self.count)
+                        or self.count < 1 or len(current_words) == self.count):
                     yield(current_words.copy())
-                if count < 1 or len(current_words) < count:
+                if self.count < 1 or len(current_words) < self.count:
                     start = next_index(word)
                     for i in range(start, len(self.phrase)):
-                        for sub_list in self._iterate_matches(count, i,
-                                                              current_words,
-                                                              allow_less):
-                            yield(sub_list)
+                        yield from self._iterate_matches(i, current_words)
                 current_words.pop()
 
-    def iterate_matches(self, count, index=0, allow_less=True):
+    def iterate_matches(self, index=0):
         """Iterates through all matches that have a word starting at index with
         the same number of words as count or any number of words if it is less
         than 1.
         """
-        for word_list in self._iterate_matches(count, index, [], allow_less):
+        for word_list in self._iterate_matches(index, []):
             yield(word_list)
+
+    def iterate_all_matches(self):
+        for i in range(len(self.phrase)):
+            yield from self.iterate_matches(i)
 
 
 class WordMatcher():
@@ -228,8 +242,8 @@ class WordMatcher():
     letters of that phrase using a dictionary of words.
     """
 
-    def __init__(self):
-        self.set_dict(read_dict())
+    def __init__(self, path=DICT_PATH):
+        self.set_dict(read_dict(path))
 
     def set_dict(self, dictionary: list):
         """Takes a list of words and stores them as the dictionary to use."""
@@ -258,7 +272,8 @@ class WordMatcher():
                 self._print_word_matches(word, start_index, word_index + 1, i,
                                          new_indexes, words)
 
-    def print_matches(self, phrase: str, count: int=0, allow_less: bool=True):
+    def print_matches(self, phrase: str, count: int=0, allow_less: bool=True,
+                      words_only=False, unique_phrases=False):
         """Prints all word combinations that can be formed by taking phrase and
         covering certain letters. The combinations will have count words or
         less if allow_less is True or any number of words is count is less than
@@ -274,14 +289,46 @@ class WordMatcher():
                 next_indices = words.initial_map[word[0]]
                 for i in next_indices:
                     self._print_word_matches(word, i, 1, i, [i], words)
-        for i in range(len(phrase)):
-            for word_list in words.iterate_matches(count, i, allow_less):
-                print_word_list(word_list, words.original_phrase)
+        if words_only and unique_phrases:
+            lines = set()
+            for line in (make_word_line(word_list, words.original_phrase) for
+                         word_list in words.iterate_all_matches()):
+                if line not in lines:
+                    print(line)
+                    lines.add(line)
+        else:
+            for word_list in words.iterate_all_matches():
+                    print_word_list(word_list, words.original_phrase,
+                                    words_only)
+
+
+def make_parser():
+    parser = argparse.ArgumentParser(description="Find new memes")
+    parser.add_argument("phrase", nargs="?")
+    parser.add_argument("-c", "--count", help="The number of words to print.",
+                        type=int, default=0)
+    parser.add_argument("-l", "--allow-less", help="Allow word combinations "
+                        "with less words.", action="store_true", default=True)
+    parser.add_argument("-w", "--words-only", help="Only print words",
+                        action="store_true")
+    parser.add_argument("-d", "--dictionary", help="Dictionary file to use")
+    parser.add_argument("-u", "--unique-phrases", help="Only print a series of"
+                        " words once (only if using -w)", action="store_true",
+                        default=False)
+    return parser
 
 
 def main(argv):
-    matcher = WordMatcher()
+    parser = make_parser()
+    args = parser.parse_args(argv[1:])
+    if args.phrase:
+        path = args.dictionary if args.dictionary else DICT_PATH
+        matcher = WordMatcher(path)
+        matcher.print_matches(args.phrase, args.count, args.allow_less,
+                              args.words_only, args.unique_phrases)
+        return
     while True:
+        matcher = WordMatcher()
         phrase = input("Enter a phrase (empty to quit): ")
         if not phrase:
             return
