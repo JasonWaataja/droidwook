@@ -141,20 +141,6 @@ def trim_dictionary(phrase: str, dictionary: list, dictionary_inventories:
     return trimmed_dict
 
 
-def make_letter_dicts(dictionary: list) -> dict:
-    """Returns a map of letters to words that start with that letter from
-    dictionary.
-    """
-    letter_dicts = {}
-    for word in dictionary:
-        letter = word[0]
-        if letter in letter_dicts:
-            letter_dicts[letter].append(word)
-        else:
-            letter_dicts[letter] = [word]
-    return letter_dicts
-
-
 def next_index(word):
     """Returns one past the last index of the list of indexes."""
     # TODO: Change this to use the last index instead of max.
@@ -165,7 +151,8 @@ class MatchResults():
     """A incremental result of finding words by covering letters of a phrase.
     Stores the original phrase as well as the lower case version and can give a
     list of word indices for words that begin at any given index of the
-    phrase."""
+    phrase.
+    """
 
     def __init__(self, phrase: str, count: int=0, allow_less: bool=True):
         self.original_phrase = phrase
@@ -173,6 +160,15 @@ class MatchResults():
         self.count = count
         self.allow_less = allow_less
         self.words = []
+        self.maps = make_letter_maps(self.phrase)
+        self.initial_map = {}
+        for letter in string.ascii_lowercase:
+            for i in range(len(self.phrase)):
+                if self.phrase[i] == letter:
+                    if letter in self.initial_map:
+                        self.initial_map[letter].append(i)
+                    else:
+                        self.initial_map[letter] = [i]
         for letter in self.phrase:
             if is_letter(letter):
                 self.words.append([])
@@ -200,7 +196,8 @@ class MatchResults():
     def _iterate_matches(self, count: int, index: int, current_words: list,
                          allow_less: bool=False):
         """Iterates throuh all matches that have a word starting at index and
-        using any word already in current_words."""
+        using any word already in current_words.
+        """
         word_list = self.words[index]
         if word_list is not None:
             for word in word_list:
@@ -220,7 +217,8 @@ class MatchResults():
     def iterate_matches(self, count, index=0, allow_less=True):
         """Iterates through all matches that have a word starting at index with
         the same number of words as count or any number of words if it is less
-        than 1."""
+        than 1.
+        """
         for word_list in self._iterate_matches(count, index, [], allow_less):
             yield(word_list)
 
@@ -244,7 +242,7 @@ class WordMatcher():
         self.set_dict(read_dict(path))
 
     def _print_word_matches(self, word: str, start_index: int, word_index: int,
-                            index: int, indexes: list, maps: list, words):
+                            index: int, indexes: list, words):
         """Checks if word matches the phrase starting at start_index from
         word_index at index in the phrase assuming the indices in indexes have
         already been matches using maps containing lists of dictionaries of
@@ -253,13 +251,12 @@ class WordMatcher():
         the new words it finds.
         """
         if word_index == len(word):
-            words.add_match(indexes, start_index, True, words.count,
-                            words.allow_less)
-        elif word[word_index] in maps[index]:
-            for i in maps[index][word[word_index]]:
+            words.add_match(indexes, start_index)
+        elif word[word_index] in words.maps[index]:
+            for i in words.maps[index][word[word_index]]:
                 new_indexes = indexes + [i]
                 self._print_word_matches(word, start_index, word_index + 1, i,
-                                         new_indexes, maps, words)
+                                         new_indexes, words)
 
     def print_matches(self, phrase: str, count: int=0, allow_less: bool=True):
         """Prints all word combinations that can be formed by taking phrase and
@@ -270,17 +267,16 @@ class WordMatcher():
         words = MatchResults(phrase, count, allow_less)
         # Get lower case version
         phrase = words.phrase
-        maps = make_letter_maps(phrase)
         trimmed_dictionary = trim_dictionary(phrase, self._dictionary,
                                              self._dictionary_inventories)
-        letter_dicts = make_letter_dicts(trimmed_dictionary)
-        for i in range(len(phrase)-1, -1, -1):
-            letter = phrase[i]
-            if is_letter(letter) and letter in letter_dicts:
-                for word in letter_dicts[letter]:
-                    if word[0] == letter:
-                        self._print_word_matches(word, i, 1, i, [i], maps,
-                                                 words)
+        for word in trimmed_dictionary:
+            if word[0] in words.initial_map:
+                next_indices = words.initial_map[word[0]]
+                for i in next_indices:
+                    self._print_word_matches(word, i, 1, i, [i], words)
+        for i in range(len(phrase)):
+            for word_list in words.iterate_matches(count, i, allow_less):
+                print_word_list(word_list, words.original_phrase)
 
 
 def main(argv):
