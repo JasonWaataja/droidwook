@@ -184,8 +184,8 @@ class WordMatcher():
         """Loads the dictionary from the file located at path."""
         self.set_dict(read_dict(path))
 
-    def _print_word_matches(self, word: str, start_index: int, word_index: int,
-                            index: int, indices: list, words):
+    def _print_word_matches(self, word: str, word_index: int, index: int,
+                            indices: list, words):
         """Checks if word matches the phrase starting at start_index from
         word_index at index in the phrase assuming the indices in indices have
         already been matches using maps containing lists of dictionaries of
@@ -194,12 +194,13 @@ class WordMatcher():
         the new words it finds.
         """
         if word_index == len(word):
-            words.add_match(indices, start_index)
+            # TODO: Make this check for non-empty indices.
+            words.add_match(indices, indices[0])
         elif word[word_index] in words.maps[index]:
             for i in words.maps[index][word[word_index]]:
                 new_indices = indices + [i]
-                self._print_word_matches(word, start_index, word_index + 1, i,
-                                         new_indices, words)
+                self._print_word_matches(word, word_index + 1, i, new_indices,
+                                         words)
 
     def print_matches(self, phrase: str, count: int=0, allow_less: bool=True,
                       words_only: bool=False, unique_phrases: bool=False):
@@ -212,7 +213,7 @@ class WordMatcher():
         # Get lower case version
         phrase = words.phrase
         for word in self._dictionary:
-            self._print_word_matches(word, 0, 0, 0, [], words)
+            self._print_word_matches(word, 0, 0, [], words)
         if words_only and unique_phrases:
             lines = set()
             for line in (make_word_line(word_list, words.original_phrase) for
