@@ -15,54 +15,6 @@ def is_letter(letter: str) -> bool:
     return letter in string.ascii_lowercase
 
 
-class LetterInventory():
-    """A bag of letters that can be added or subtracted from others."""
-
-    def __init__(self, word: str=""):
-        self.letters = {}
-        if word == "":
-            return
-        for letter in string.ascii_lowercase:
-            self.letters[letter] = word.count(letter)
-
-    def get(self, letter: str) -> int:
-        """Returns count for letter."""
-        return self.letters[letter]
-
-    def set(self, letter: str, count: int):
-        """Sets count to count for letter."""
-        self.letters[letter] = count
-
-    def sub(self, other):
-        """Subtracts other from this inventory and returns it as a new
-        inventory. Returns None if it cannot be.
-        """
-        if len(other.letters) > len(self.letters):
-            return None
-        difference = LetterInventory()
-        for letter in string.ascii_lowercase:
-            count = self.get(letter) - other.get(letter)
-            if count < 0:
-                return None
-            difference.letters[letter] = count
-        return difference
-
-    def add(self, other):
-        """Adds other to this inventory and returns a the result as a new
-        inventory.
-        """
-        result = LetterInventory()
-        for letter in string.ascii_lowercase:
-            result.letters[letter] = self.get(letter) + other.get(letter)
-        return result
-
-    def copy(self):
-        """Returns a copy of this inventory."""
-        result = LetterInventory()
-        result.letters = self.letters.copy()
-        return result
-
-
 def make_letter_maps(phrase: str) -> list:
     """Returns a list with the same length as phrase, each element is None if
     it's not a letter or a dictionary mapping letters to lists of indices where
@@ -89,16 +41,19 @@ def make_letter_maps(phrase: str) -> list:
             maps[i] = None
     return maps
 
-
+# Uncomment this and comment the other line below to use the system dictionary.
+# This will probably work on Mac and most Linux distributions, although you may
+# specifically have to install this file.
 # DICT_PATH = "/usr/share/dict/words"
+
 
 # The path to read the dictionary from.
 DICT_PATH = "dict.txt"
 
 
 def read_dict(path: str=DICT_PATH) -> list:
-    """Reads the dictionary at path and returns a list of the words in it in
-    lower case with duplicates removed.
+    """Reads the dictionary at path and returns a sorted list of the words in
+    it in lower case with duplicates removed.
     """
     with open(path, "r") as f:
         words = set([line.lower().rstrip() for line in f.readlines()])
@@ -144,22 +99,6 @@ def print_word_list(word_list: list, phrase: str, words_only: bool=False):
             if i != last_index:
                 combined[2 * i - 1] = "|"
         print("{} ({})".format("".join(combined), " ".join(words)))
-
-
-def trim_dictionary(phrase: str, dictionary: list, dictionary_inventories:
-                    list) -> list:
-    """Returns a new list of words from the original dictionary. This new
-    dictionary only contains words that can be subtracted from the phrase,
-    meaning the phrase has all the necessary letters for that word.
-    dictionary_inventories must be the same length as dictionary and contain
-    corresponding LetterInventory objects at corresponding indices.
-    """
-    inventory = LetterInventory(phrase)
-    trimmed_dict = []
-    for i in range(len(dictionary)):
-        if inventory.sub(dictionary_inventories[i]) is not None:
-            trimmed_dict.append(dictionary[i])
-    return trimmed_dict
 
 
 def next_index(word: list) -> int:
@@ -255,8 +194,6 @@ class WordMatcher():
     def set_dict(self, dictionary: list):
         """Takes a list of words and stores them as the dictionary to use."""
         self._dictionary = [word.lower() for word in dictionary]
-        self._dictionary_inventories = [LetterInventory(word) for word in
-                                        self._dictionary]
 
     def set_dict_file(self, path: str):
         """Loads the dictionary from the file located at path."""
@@ -289,9 +226,7 @@ class WordMatcher():
         words = MatchResults(phrase, count, allow_less)
         # Get lower case version
         phrase = words.phrase
-        trimmed_dictionary = trim_dictionary(phrase, self._dictionary,
-                                             self._dictionary_inventories)
-        for word in trimmed_dictionary:
+        for word in self._dictionary:
             if word[0] in words.initial_map:
                 next_indices = words.initial_map[word[0]]
                 for i in next_indices:
