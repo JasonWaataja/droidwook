@@ -20,30 +20,23 @@ def make_letter_maps(phrase: str) -> list:
     it's not a letter or a dictionary mapping letters to lists of indices where
     that letter can be found later in the phrase."""
     maps = [None] * len(phrase)
-    last = None
-    lastLetter = None
-    lastIndex = 0
+    last_index = None
     for i in range(len(phrase)-1, -1, -1):
         letter = phrase[i]
-        if is_letter(letter):
-            if last is None:
-                maps[i] = {}
-            else:
-                maps[i] = copy.deepcopy(last)
-                if lastLetter in maps[i]:
-                    maps[i][lastLetter].append(lastIndex)
-                else:
-                    maps[i][lastLetter] = [lastIndex]
-            last = maps[i]
-            lastLetter = letter
-            lastIndex = i
+        if last_index is None:
+            maps[i] = {}
         else:
-            maps[i] = None
+            maps[i] = copy.deepcopy(maps[last_index])
+        if is_letter(letter):
+            if letter not in maps[i]:
+                maps[i][letter] = []
+            maps[i][letter].append(i)
+            last_index = i
     return maps
 
 # Uncomment this and comment the other line below to use the system dictionary.
-# This will probably work on Mac and most Linux distributions, although you may
-# specifically have to install this file.
+# This will probably work on Mac and most GNU/Linux distributions, although you
+# may specifically have to install this file.
 # DICT_PATH = "/usr/share/dict/words"
 
 
@@ -122,14 +115,6 @@ class MatchResults():
         self.words_only = words_only
         self.words = []
         self.maps = make_letter_maps(self.phrase)
-        self.initial_map = {}
-        for letter in string.ascii_lowercase:
-            for i in range(len(self.phrase)):
-                if self.phrase[i] == letter:
-                    if letter in self.initial_map:
-                        self.initial_map[letter].append(i)
-                    else:
-                        self.initial_map[letter] = [i]
         for letter in self.phrase:
             if is_letter(letter):
                 self.words.append([])
@@ -227,10 +212,7 @@ class WordMatcher():
         # Get lower case version
         phrase = words.phrase
         for word in self._dictionary:
-            if word[0] in words.initial_map:
-                next_indices = words.initial_map[word[0]]
-                for i in next_indices:
-                    self._print_word_matches(word, i, 1, i, [i], words)
+            self._print_word_matches(word, 0, 0, 0, [], words)
         if words_only and unique_phrases:
             lines = set()
             for line in (make_word_line(word_list, words.original_phrase) for
