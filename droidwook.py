@@ -16,9 +16,10 @@ def is_letter(letter: str) -> bool:
 
 
 def make_letter_maps(phrase: str) -> list:
-    """Returns a list with the same length as phrase, each element is None if
-    it's not a letter or a dictionary mapping letters to lists of indices where
-    that letter can be found from that point on in the phrase."""
+    """Returns a list with the same length as phrase. Each element is a map
+    from letters to indices where that letter can be found in phrase starting
+    from the corresponding index in the list onwards.
+    """
     maps = [None] * len(phrase)
     prev = {}
     for i in range(len(phrase) - 1, -1, -1):
@@ -38,37 +39,33 @@ def make_letter_maps(phrase: str) -> list:
 # DICT_PATH = "/usr/share/dict/words"
 
 
-# The path to read the dictionary from.
+# The path to read the dictionary from the current directory.
 DICT_PATH = "dict.txt"
 
 
 def read_dict(path: str = DICT_PATH) -> list:
-    """Reads the dictionary at path and returns a sorted list of the words in
-    it in lower case with duplicates removed.
+    """Reads the dictionary at path and returns a list of words in that
+    dictionary in lower case.
     """
     with open(path, "r") as f:
         return [line.lower().rstrip() for line in f.readlines()]
 
 
 def make_word_line(word_list: list, phrase: str) -> str:
-    """Takes a list of list of indices and returns a line formed taking those
-    indices of phrase.
+    """Takes a list of list of indices and returns a space separated string
+    taken by forming words with the letters in phrase at the corresponding
+    indices.
     """
     def word_for(word):
         return "".join(map(lambda index: phrase[index], word))
     return " ".join(map(word_for, word_list))
 
 
-def print_word_list(word_list: list, phrase: str, words_only: bool = False):
-    """Prints the words in word_list by getting indices from phrase. word_list
-    is a list of list of int. Each element is a list of indices in phrase and
-    the output is constructed by using those indices of phrase. Note, the
-    indices themselves are often build with case insensitive methods and then
-    the cased letters are taken from the original phrase.
+def print_word_list(word_list: list, phrase: str):
+    """Prints the words in word_list by getting indices from phrase. The
+    word_list is a list of list of ints. Each element is a list of indices in
+    phrase and the output is constructed by using those indices of phrase.
     """
-    if words_only:
-        print(make_word_line(word_list, phrase))
-        return
     result = []
     for letter in phrase:
         result.append("_" if is_letter(letter.lower()) else letter)
@@ -82,11 +79,6 @@ def print_word_list(word_list: list, phrase: str, words_only: bool = False):
     print("{}({})".format("".join(result), make_word_line(word_list, phrase)))
 
 
-def next_index(word: list) -> int:
-    """Returns one past the last index of the list of indices."""
-    return word[-1] + 1
-
-
 class MatchResults():
     """A incremental result of finding words by covering letters of a phrase.
     Stores the original phrase as well as the lower case version and can give a
@@ -94,26 +86,21 @@ class MatchResults():
     phrase.
     """
 
-    def __init__(self, phrase: str, count: int = 0, allow_less: bool = False,
-                 words_only: bool = False):
+    def __init__(self, phrase: str, count: int = 0, allow_less: bool = False):
         self.phrase = phrase
         self.count = count
         self.allow_less = allow_less
-        self.words_only = words_only
         self.matches = [[] for _ in range(len(phrase))]
         self.maps = make_letter_maps(phrase.lower())
 
     def add_match(self, indices: list):
-        """Stores a match with indices at indices assuming it starts at index.
-        If print_results is True, print all results that include that word and
-        all combinations that include count words or less if allow_less is
-        True.
-        """
+        """Stores the given indices and does not modify them."""
         self.matches[indices[0]].append(indices.copy())
 
     def _iterate_matches(self, index: int, current_words: list):
         """Iterates throuh all matches that have a word starting at index and
-        using any word already in current_words.
+        using any word already in current_words. Yields a list of list of
+        indices of matched words.
         """
         for indices in self.matches[index]:
             current_words.append(indices)
@@ -121,19 +108,22 @@ class MatchResults():
                     or self.allow_less):
                 yield(current_words)
                 if self.count < 1 or len(current_words) < self.count:
-                    for i in range(next_index(indices), len(self.phrase)):
+                    # Start from one past the last value in indices.
+                    for i in range(indices[-1] + 1, len(self.phrase)):
                         yield from self._iterate_matches(i, current_words)
             current_words.pop()
 
     def iterate_matches(self, index=0):
         """Iterates through all matches that have a word starting at index with
         the same number of words as count or any number of words if it is less
-        than 1.
+        than 1. Yields a list of list of indices of matched words.
         """
         yield from self._iterate_matches(index, [])
 
     def iterate_all_matches(self):
-        """Iterates over all matches currently found."""
+        """Iterates over all matches currently found at any index. Yields a
+        list of list of indices of matched words.
+        """
         for i in range(len(self.phrase)):
             yield from self.iterate_matches(i)
 
@@ -177,8 +167,8 @@ class WordMatcher():
                                     indices, results)
                 indices.pop()
 
-    def match_results(self, phrase: str, count: int = 0, allow_less: bool = False,
-                      words_only: bool = False, unique_phrases: bool = False):
+    def match_results(self, phrase: str, count: int = 0,
+                      allow_less: bool = False):
         """Prints all word combinations that can be formed by taking phrase and
         covering certain letters. The combinations will have count words or
         less if allow_less is True or any number of words is count is less than
@@ -187,14 +177,6 @@ class WordMatcher():
         results = MatchResults(phrase, count, allow_less)
         for word in self._dictionary:
             self._match_results(word, 0, 0, [], results)
-        # if words_only and unique_phrases:
-        #     lines = set()
-        #     for line in (make_word_line(word_list, phrase) for
-        #                  word_list in results.iterate_all_matches()):
-        #         as_lower = line.lower()
-        #         if as_lower not in lines:
-        #             print(line)
-        #             lines.add(as_lower)
         return results
 
 
@@ -206,12 +188,7 @@ def make_parser():
                         type=int, default=0)
     parser.add_argument("-l", "--allow-less", help="Allow word combinations "
                         "with less words.", action="store_true", default=True)
-    parser.add_argument("-w", "--words-only", help="Only print words",
-                        action="store_true")
     parser.add_argument("-d", "--dictionary", help="Dictionary file to use")
-    parser.add_argument("-u", "--unique-phrases", help="Only print a series of"
-                        " words once (only if using -w)", action="store_true",
-                        default=False)
     return parser
 
 
@@ -226,8 +203,7 @@ def main(argv):
             print("Error loading dictionary")
             return
         results = matcher.match_results(args.phrase, args.count,
-                                        args.allow_less, args.words_only,
-                                        args.unique_phrases)
+                                        args.allow_less)
         results.print_all_matches()
         return
     while True:
